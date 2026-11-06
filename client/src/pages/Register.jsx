@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/api";
@@ -28,13 +29,18 @@ export default function Register() {
     setError("");
 
     try {
-      await api.post("/auth/register", form);
+      await api.post("/api/auth/register", form);
+
       setMessage("Registration successful. Please login.");
+
       setTimeout(() => {
         navigate("/");
       }, 1000);
+
     } catch (err) {
-      setError(err?.response?.data?.error || "Registration failed");
+      setError(
+        err?.response?.data?.error || "Registration failed"
+      );
     }
   };
 
@@ -88,8 +94,13 @@ export default function Register() {
         </button>
       </form>
 
-      {message && <p style={{ color: "green", marginTop: 10 }}>{message}</p>}
-      {error && <p style={{ color: "red", marginTop: 10 }}>{error}</p>}
+      {message && (
+        <p style={{ color: "green", marginTop: 10 }}>{message}</p>
+      )}
+
+      {error && (
+        <p style={{ color: "red", marginTop: 10 }}>{error}</p>
+      )}
 
       <p style={{ marginTop: 15 }}>
         Already have an account? <Link to="/">Login</Link>

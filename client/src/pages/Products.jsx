@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import api from "../api/api";
 
@@ -6,6 +7,7 @@ export default function Products() {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
   const [form, setForm] = useState({
     sku: "",
     name: "",
@@ -13,15 +15,19 @@ export default function Products() {
     quantity: "",
     reorder_level: ""
   });
+
   const [editingId, setEditingId] = useState(null);
 
   const loadProducts = async () => {
     try {
-      const res = await api.get("/products");
-      setProducts(res.data);
+      const res = await api.get("/api/products");
+      setProducts(Array.isArray(res.data) ? res.data : []);
+      setError("");
     } catch (error) {
       console.error("Failed to load products:", error);
-      setError("Failed to load products.");
+      setError(
+        error.response?.data?.error || "Failed to load products."
+      );
     }
   };
 
@@ -62,19 +68,21 @@ export default function Products() {
         reorder_level: Number(form.reorder_level)
       };
 
-      if (editingId) {
-        await api.put(`/products/${editingId}`, payload);
+      if (editingId !== null) {
+        await api.put(`/api/products/${editingId}`, payload);
         setMessage("Product updated successfully.");
       } else {
-        await api.post("/products", payload);
+        await api.post("/api/products", payload);
         setMessage("Product added successfully.");
       }
 
       resetForm();
-      loadProducts();
+      await loadProducts();
     } catch (error) {
       console.error("Failed to save product:", error);
-      setError("Failed to save product.");
+      setError(
+        error.response?.data?.error || "Failed to save product."
+      );
     }
   };
 
@@ -82,6 +90,7 @@ export default function Products() {
     setMessage("");
     setError("");
     setEditingId(product.id);
+
     setForm({
       sku: product.sku,
       name: product.name,
@@ -92,35 +101,42 @@ export default function Products() {
   };
 
   const handleDelete = async (id) => {
-    const ok = window.confirm("Are you sure you want to delete this product?");
+    const ok = window.confirm(
+      "Are you sure you want to delete this product?"
+    );
+
     if (!ok) return;
 
     setMessage("");
     setError("");
 
     try {
-      await api.delete(`/products/${id}`);
+      await api.delete(`/api/products/${id}`);
+
       if (editingId === id) {
         resetForm();
       }
+
       setMessage("Product deleted successfully.");
-      loadProducts();
+      await loadProducts();
     } catch (error) {
       console.error("Failed to delete product:", error);
-      setError("Failed to delete product.");
+      setError(
+        error.response?.data?.error || "Failed to delete product."
+      );
     }
   };
 
   const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku.toLowerCase().includes(search.toLowerCase())
+    (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (p.sku || "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div style={{ padding: 20 }}>
       <h2>Products</h2>
 
-      <h3>{editingId ? "Edit Product" : "Add Product"}</h3>
+      <h3>{editingId !== null ? "Edit Product" : "Add Product"}</h3>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: 30 }}>
         <input
@@ -147,6 +163,8 @@ export default function Products() {
           placeholder="Price"
           value={form.price}
           onChange={handleChange}
+          min="0"
+          step="0.01"
           required
           style={{ display: "block", marginBottom: 10, padding: 10, width: 300 }}
         />
@@ -157,6 +175,7 @@ export default function Products() {
           placeholder="Quantity"
           value={form.quantity}
           onChange={handleChange}
+          min="0"
           required
           style={{ display: "block", marginBottom: 10, padding: 10, width: 300 }}
         />
@@ -167,6 +186,7 @@ export default function Products() {
           placeholder="Reorder Level"
           value={form.reorder_level}
           onChange={handleChange}
+          min="0"
           required
           style={{ display: "block", marginBottom: 10, padding: 10, width: 300 }}
         />
@@ -183,10 +203,10 @@ export default function Products() {
             cursor: "pointer"
           }}
         >
-          {editingId ? "Update Product" : "Add Product"}
+          {editingId !== null ? "Update Product" : "Add Product"}
         </button>
 
-        {editingId && (
+        {editingId !== null && (
           <button
             type="button"
             onClick={resetForm}
@@ -205,25 +225,13 @@ export default function Products() {
       </form>
 
       {message && (
-        <p
-          style={{
-            color: "green",
-            marginBottom: 15,
-            fontWeight: "500"
-          }}
-        >
+        <p style={{ color: "green", marginBottom: 15, fontWeight: "500" }}>
           {message}
         </p>
       )}
 
       {error && (
-        <p
-          style={{
-            color: "red",
-            marginBottom: 15,
-            fontWeight: "500"
-          }}
-        >
+        <p style={{ color: "red", marginBottom: 15, fontWeight: "500" }}>
           {error}
         </p>
       )}
@@ -272,6 +280,7 @@ export default function Products() {
               <td>{p.reorder_level}</td>
               <td>
                 <button
+                  type="button"
                   onClick={() => handleEdit(p)}
                   style={{
                     marginRight: 8,
@@ -287,6 +296,7 @@ export default function Products() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleDelete(p.id)}
                   style={{
                     padding: "8px 14px",
@@ -302,6 +312,14 @@ export default function Products() {
               </td>
             </tr>
           ))}
+
+          {filteredProducts.length === 0 && (
+            <tr>
+              <td colSpan="7" style={{ textAlign: "center" }}>
+                No products found.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

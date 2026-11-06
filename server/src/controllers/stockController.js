@@ -1,67 +1,141 @@
+
 import { pool } from "../db.js";
 
-// ✅ STOCK IN (increase quantity + add history)
+// STOCK IN
 export const stockIn = async (req, res) => {
   const { product_id, qty, note } = req.body;
 
+  if (
+    !Number.isInteger(Number(product_id)) ||
+    Number(product_id) <= 0 ||
+    !Number.isInteger(Number(qty)) ||
+    Number(qty) <= 0
+  ) {
+    return res.status(400).json({
+      message: "Valid product_id and positive quantity are required"
+    });
+  }
+
+  const client = await pool.connect();
+
   try {
-    if (!product_id || !qty || qty <= 0) {
-      return res.status(400).json({ message: "product_id and qty must be valid" });
-    }
+    await client.query("BEGIN");
 
-    // Check product exists
-    const p = await pool.query("SELECT id FROM products WHERE id=$1", [product_id]);
-    if (p.rows.length === 0) return res.status(404).json({ message: "Product not found" });
-
-    // Update product quantity
-    await pool.query("UPDATE products SET quantity = quantity + $1 WHERE id=$2", [qty, product_id]);
-
-    // Insert movement history
-    const movement = await pool.query(
-      "INSERT INTO stock_movements(product_id, type, qty, note) VALUES($1, 'IN', $2, $3) RETURNING *",
-      [product_id, qty, note ?? null]
+    const product = await client.query(
+      "SELECT id FROM products WHERE id = $1 FOR UPDATE",
+      [product_id]
     );
 
-    res.json({ message: "Stock IN successful", movement: movement.rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (product.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    await client.query(
+      "UPDATE products SET quantity = quantity + $1 WHERE id = $2",
+      [qty, product_id]
+    );
+
+    const movement = await client.query(
+      `INSERT INTO stock_movements
+       (product_id, type, qty, note)
+       VALUES ($1, 'IN', $2, $3)
+       RETURNING *`,
+      [product_id, qty, note || null]
+    );
+
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      message: "Stock IN successful",
+      movement: movement.rows[0]
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Stock IN error:", error);
+
+    res.status(500).json({
+      error: "Failed to add stock"
+    });
+  } finally {
+    client.release();
   }
 };
 
-// ✅ STOCK OUT (decrease quantity + add history)
+
+// STOCK OUT
 export const stockOut = async (req, res) => {
   const { product_id, qty, note } = req.body;
 
+  if (
+    !Number.isInteger(Number(product_id)) ||
+    Number(product_id) <= 0 ||
+    !Number.isInteger(Number(qty)) ||
+    Number(qty) <= 0
+  ) {
+    return res.status(400).json({
+      message: "Valid product_id and positive quantity are required"
+    });
+  }
+
+  const client = await pool.connect();
+
   try {
-    if (!product_id || !qty || qty <= 0) {
-      return res.status(400).json({ message: "product_id and qty must be valid" });
-    }
+    await client.query("BEGIN");
 
-    // Check product + current stock
-    const cur = await pool.query("SELECT quantity FROM products WHERE id=$1", [product_id]);
-    if (cur.rows.length === 0) return res.status(404).json({ message: "Product not found" });
-
-    const currentQty = Number(cur.rows[0].quantity);
-    if (currentQty < qty) {
-      return res.status(400).json({ message: `Not enough stock. Current stock: ${currentQty}` });
-    }
-
-    // Update product quantity
-    await pool.query("UPDATE products SET quantity = quantity - $1 WHERE id=$2", [qty, product_id]);
-
-    // Insert movement history
-    const movement = await pool.query(
-      "INSERT INTO stock_movements(product_id, type, qty, note) VALUES($1, 'OUT', $2, $3) RETURNING *",
-      [product_id, qty, note ?? null]
+    const product = await client.query(
+      "SELECT quantity FROM products WHERE id = $1 FOR UPDATE",
+      [product_id]
     );
 
-    res.json({ message: "Stock OUT successful", movement: movement.rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (product.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const currentQty = Number(product.rows[0].quantity);
+
+    if (currentQty < Number(qty)) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        message: `Not enough stock. Current stock: ${currentQty}`
+      });
+    }
+
+    await client.query(
+      "UPDATE products SET quantity = quantity - $1 WHERE id = $2",
+      [qty, product_id]
+    );
+
+    const movement = await client.query(
+      `INSERT INTO stock_movements
+       (product_id, type, qty, note)
+       VALUES ($1, 'OUT', $2, $3)
+       RETURNING *`,
+      [product_id, qty, note || null]
+    );
+
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      message: "Stock OUT successful",
+      movement: movement.rows[0]
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Stock OUT error:", error);
+
+    res.status(500).json({
+      error: "Failed to remove stock"
+    });
+  } finally {
+    client.release();
   }
 };
 
-// ✅ STOCK HISTORY (latest 200)
+
+// STOCK HISTORY
 export const stockHistory = async (req, res) => {
   try {
     const result = await pool.query(`
@@ -73,7 +147,11 @@ export const stockHistory = async (req, res) => {
     `);
 
     res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error("Stock history error:", error);
+
+    res.status(500).json({
+      error: "Failed to load stock history"
+    });
   }
 };

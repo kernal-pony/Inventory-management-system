@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import api from "../api/api";
 
@@ -8,11 +9,19 @@ export default function StockIn() {
     qty: "",
     note: ""
   });
+
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const loadProducts = async () => {
-    const res = await api.get("/products");
-    setProducts(res.data);
+    try {
+      const res = await api.get("/api/products");
+      setProducts(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load products:", err);
+      setError("Failed to load products.");
+    }
   };
 
   useEffect(() => {
@@ -29,15 +38,23 @@ export default function StockIn() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("");
+    setError("");
+
+    if (Number(form.qty) <= 0) {
+      setError("Quantity must be greater than zero.");
+      return;
+    }
 
     try {
-      await api.post("/stock/in", {
+      setLoading(true);
+
+      await api.post("/api/stock/in", {
         product_id: Number(form.product_id),
         qty: Number(form.qty),
         note: form.note
       });
 
-      setMessage("Stock added successfully");
+      setMessage("Stock added successfully!");
 
       setForm({
         product_id: "",
@@ -45,9 +62,15 @@ export default function StockIn() {
         note: ""
       });
 
-      loadProducts();
-    } catch (error) {
-      setMessage("Failed to add stock");
+      await loadProducts();
+    } catch (err) {
+      console.error("Failed to add stock:", err);
+
+      setError(
+        err.response?.data?.error || "Failed to add stock."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,14 +80,21 @@ export default function StockIn() {
 
       <form onSubmit={handleSubmit} style={{ maxWidth: 400 }}>
         <label>Product</label>
+
         <select
           name="product_id"
           value={form.product_id}
           onChange={handleChange}
           required
-          style={{ display: "block", width: "100%", padding: 10, marginBottom: 10 }}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: 10,
+            marginBottom: 10
+          }}
         >
           <option value="">Select Product</option>
+
           {products.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} ({p.sku}) - Current Qty: {p.quantity}
@@ -73,31 +103,62 @@ export default function StockIn() {
         </select>
 
         <label>Quantity</label>
+
         <input
           type="number"
           name="qty"
           value={form.qty}
           onChange={handleChange}
+          min="1"
+          step="1"
           required
-          style={{ display: "block", width: "100%", padding: 10, marginBottom: 10 }}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: 10,
+            marginBottom: 10
+          }}
         />
 
         <label>Note</label>
+
         <input
           type="text"
           name="note"
           value={form.note}
           onChange={handleChange}
           placeholder="Optional note"
-          style={{ display: "block", width: "100%", padding: 10, marginBottom: 10 }}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: 10,
+            marginBottom: 10
+          }}
         />
 
-        <button type="submit" style={{ padding: "10px 20px" }}>
-          Add Stock
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            padding: "10px 20px",
+            cursor: loading ? "not-allowed" : "pointer"
+          }}
+        >
+          {loading ? "Adding..." : "Add Stock"}
         </button>
       </form>
 
-      {message && <p style={{ marginTop: 15 }}>{message}</p>}
+      {message && (
+        <p style={{ color: "green", marginTop: 15 }}>
+          {message}
+        </p>
+      )}
+
+      {error && (
+        <p style={{ color: "red", marginTop: 15 }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

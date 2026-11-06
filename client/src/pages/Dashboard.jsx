@@ -7,8 +7,8 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const productsRes = await api.get("/products");
-      const historyRes = await api.get("/stock/history");
+      const productsRes = await api.get("/api/products");
+      const historyRes = await api.get("/api/stock/history");
 
       setProducts(productsRes.data);
       setHistory(historyRes.data);

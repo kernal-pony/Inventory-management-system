@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import api from "../api/api";
 
@@ -6,6 +7,7 @@ export default function Suppliers() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -16,11 +18,14 @@ export default function Suppliers() {
 
   const loadSuppliers = async () => {
     try {
-      const res = await api.get("/suppliers");
-      setSuppliers(res.data);
-    } catch (error) {
-      console.error("Failed to load suppliers:", error);
-      setError("Failed to load suppliers.");
+      const res = await api.get("/api/suppliers");
+      setSuppliers(Array.isArray(res.data) ? res.data : []);
+      setError("");
+    } catch (err) {
+      console.error("Failed to load suppliers:", err);
+      setError(
+        err.response?.data?.error || "Failed to load suppliers."
+      );
     }
   };
 
@@ -51,24 +56,33 @@ export default function Suppliers() {
     setError("");
 
     try {
-      if (editingId) {
-        await api.put(`/suppliers/${editingId}`, form);
+      setLoading(true);
+
+      if (editingId !== null) {
+        await api.put(`/api/suppliers/${editingId}`, form);
         setMessage("Supplier updated successfully.");
       } else {
-        await api.post("/suppliers", form);
+        await api.post("/api/suppliers", form);
         setMessage("Supplier added successfully.");
       }
 
       resetForm();
-      loadSuppliers();
-    } catch (error) {
-      console.error("Failed to save supplier:", error);
-      setError("Failed to save supplier.");
+      await loadSuppliers();
+    } catch (err) {
+      console.error("Failed to save supplier:", err);
+      setError(
+        err.response?.data?.error || "Failed to save supplier."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleEdit = (supplier) => {
+    setMessage("");
+    setError("");
     setEditingId(supplier.id);
+
     setForm({
       name: supplier.name,
       phone: supplier.phone || "",
@@ -78,22 +92,29 @@ export default function Suppliers() {
   };
 
   const handleDelete = async (id) => {
-    const ok = window.confirm("Are you sure you want to delete this supplier?");
+    const ok = window.confirm(
+      "Are you sure you want to delete this supplier?"
+    );
+
     if (!ok) return;
 
     setMessage("");
     setError("");
 
     try {
-      await api.delete(`/suppliers/${id}`);
+      await api.delete(`/api/suppliers/${id}`);
+
       if (editingId === id) {
         resetForm();
       }
+
       setMessage("Supplier deleted successfully.");
-      loadSuppliers();
-    } catch (error) {
-      console.error("Failed to delete supplier:", error);
-      setError("Failed to delete supplier.");
+      await loadSuppliers();
+    } catch (err) {
+      console.error("Failed to delete supplier:", err);
+      setError(
+        err.response?.data?.error || "Failed to delete supplier."
+      );
     }
   };
 
@@ -101,7 +122,7 @@ export default function Suppliers() {
     <div style={{ padding: 20 }}>
       <h2>Suppliers</h2>
 
-      <h3>{editingId ? "Edit Supplier" : "Add Supplier"}</h3>
+      <h3>{editingId !== null ? "Edit Supplier" : "Add Supplier"}</h3>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: 30 }}>
         <input
@@ -110,7 +131,12 @@ export default function Suppliers() {
           value={form.name}
           onChange={handleChange}
           required
-          style={{ display: "block", marginBottom: 10, padding: 10, width: 320 }}
+          style={{
+            display: "block",
+            marginBottom: 10,
+            padding: 10,
+            width: 320
+          }}
         />
 
         <input
@@ -118,7 +144,12 @@ export default function Suppliers() {
           placeholder="Phone"
           value={form.phone}
           onChange={handleChange}
-          style={{ display: "block", marginBottom: 10, padding: 10, width: 320 }}
+          style={{
+            display: "block",
+            marginBottom: 10,
+            padding: 10,
+            width: 320
+          }}
         />
 
         <input
@@ -127,7 +158,12 @@ export default function Suppliers() {
           placeholder="Email"
           value={form.email}
           onChange={handleChange}
-          style={{ display: "block", marginBottom: 10, padding: 10, width: 320 }}
+          style={{
+            display: "block",
+            marginBottom: 10,
+            padding: 10,
+            width: 320
+          }}
         />
 
         <input
@@ -135,11 +171,17 @@ export default function Suppliers() {
           placeholder="Address"
           value={form.address}
           onChange={handleChange}
-          style={{ display: "block", marginBottom: 10, padding: 10, width: 320 }}
+          style={{
+            display: "block",
+            marginBottom: 10,
+            padding: 10,
+            width: 320
+          }}
         />
 
         <button
           type="submit"
+          disabled={loading}
           style={{
             padding: "8px 14px",
             marginRight: 10,
@@ -150,10 +192,14 @@ export default function Suppliers() {
             cursor: "pointer"
           }}
         >
-          {editingId ? "Update Supplier" : "Add Supplier"}
+          {loading
+            ? "Saving..."
+            : editingId !== null
+              ? "Update Supplier"
+              : "Add Supplier"}
         </button>
 
-        {editingId && (
+        {editingId !== null && (
           <button
             type="button"
             onClick={resetForm}
@@ -172,13 +218,13 @@ export default function Suppliers() {
       </form>
 
       {message && (
-        <p style={{ color: "green", marginBottom: 15, fontWeight: "500" }}>
+        <p style={{ color: "green", marginBottom: 15 }}>
           {message}
         </p>
       )}
 
       {error && (
-        <p style={{ color: "red", marginBottom: 15, fontWeight: "500" }}>
+        <p style={{ color: "red", marginBottom: 15 }}>
           {error}
         </p>
       )}
@@ -189,17 +235,17 @@ export default function Suppliers() {
         style={{
           width: "100%",
           borderCollapse: "collapse",
-          marginTop: "10px"
+          marginTop: 10
         }}
       >
         <thead>
           <tr>
-            <th style={{ backgroundColor: "#f4f4f4", color: "#000" }}>ID</th>
-            <th style={{ backgroundColor: "#f4f4f4", color: "#000" }}>Name</th>
-            <th style={{ backgroundColor: "#f4f4f4", color: "#000" }}>Phone</th>
-            <th style={{ backgroundColor: "#f4f4f4", color: "#000" }}>Email</th>
-            <th style={{ backgroundColor: "#f4f4f4", color: "#000" }}>Address</th>
-            <th style={{ backgroundColor: "#f4f4f4", color: "#000" }}>Actions</th>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Address</th>
+            <th>Actions</th>
           </tr>
         </thead>
 
@@ -208,11 +254,12 @@ export default function Suppliers() {
             <tr key={s.id}>
               <td>{s.id}</td>
               <td>{s.name}</td>
-              <td>{s.phone}</td>
-              <td>{s.email}</td>
-              <td>{s.address}</td>
+              <td>{s.phone || "-"}</td>
+              <td>{s.email || "-"}</td>
+              <td>{s.address || "-"}</td>
               <td>
                 <button
+                  type="button"
                   onClick={() => handleEdit(s)}
                   style={{
                     marginRight: 8,
@@ -228,6 +275,7 @@ export default function Suppliers() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleDelete(s.id)}
                   style={{
                     padding: "8px 14px",
@@ -243,6 +291,14 @@ export default function Suppliers() {
               </td>
             </tr>
           ))}
+
+          {suppliers.length === 0 && (
+            <tr>
+              <td colSpan="6" style={{ textAlign: "center" }}>
+                No suppliers found.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
