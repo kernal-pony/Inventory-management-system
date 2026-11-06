@@ -88,5 +88,5 @@ Database
 The project uses PostgreSQL for storing user, product, supplier and stock movement information.
 Author
 Arnab Lala
-
-Original project reference: Junaid Alam.
+25MCI10232
+25MAM 1(A)
